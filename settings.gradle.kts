@@ -19,6 +19,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Medi-Time"
+rootProject.name = "medi-time-up"
 include(":app")
  
