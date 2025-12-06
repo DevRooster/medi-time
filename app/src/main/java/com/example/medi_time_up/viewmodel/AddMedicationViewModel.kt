@@ -6,85 +6,85 @@ import com.example.medi_time_up.data.Medicamento
 import com.example.medi_time_up.data.dao.MedicamentoDao
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** Define el estado de la UI del formulario de agregar medicamento */
+/**
+ * Estado de UI para la pantalla de agregar medicamento.
+ * Ajusta los campos según lo que uses en la UI.
+ */
 data class AddMedicationUiState(
     val nombre: String = "",
     val cantidad: String = "",
-    val frecuencia: String = "",
+    val frecuencia: String? = null,
     val hora: String = "",
-    val tipo: String = "Pastilla", // Tipo por defecto
     val isFormValid: Boolean = false,
     val showSuccessToast: Boolean = false
 )
 
-class AddMedicationViewModel(private val dao: MedicamentoDao) : ViewModel() {
+class AddMedicationViewModel(
+    private val dao: MedicamentoDao
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AddMedicationUiState())
-    val uiState: StateFlow<AddMedicationUiState> = _uiState
+    val uiState: StateFlow<AddMedicationUiState> = _uiState.asStateFlow()
 
-    // --- Lógica de Actualización de Campos ---
+    // Datos temporales para el recordatorio (se envían al save)
+    private var reminderTipoLocal: String = "ALARMA"
+    private var remindBeforeLocal: Int = 0
 
-    fun updateNombre(nombre: String) {
-        _uiState.update { it.copy(nombre = nombre) }
-        validateForm()
+    // --- Actualizadores de campos (llamados desde la UI) ---
+    fun updateNombre(new: String) {
+        _uiState.update { it.copy(nombre = new, isFormValid = validateForm(new, it.cantidad, it.hora)) }
     }
 
-    fun updateCantidad(cantidad: String) {
-        _uiState.update { it.copy(cantidad = cantidad) }
-        validateForm()
+    fun updateCantidad(new: String) {
+        _uiState.update { it.copy(cantidad = new, isFormValid = validateForm(it.nombre, new, it.hora)) }
     }
 
-    fun updateFrecuencia(frecuencia: String) {
-        _uiState.update { it.copy(frecuencia = frecuencia) }
-        validateForm()
+    fun updateFrecuencia(new: String) {
+        _uiState.update { it.copy(frecuencia = new, isFormValid = validateForm(it.nombre, it.cantidad, it.hora)) }
     }
 
-    fun updateHora(hora: String) {
-        _uiState.update { it.copy(hora = hora) }
-        validateForm()
+    fun updateHora(new: String) {
+        _uiState.update { it.copy(hora = new, isFormValid = validateForm(it.nombre, it.cantidad, new)) }
     }
 
-    fun updateTipo(tipo: String) {
-        _uiState.update { it.copy(tipo = tipo) }
+    // Validación simple: nombre y hora no vacíos (puedes mejorar)
+    private fun validateForm(nombre: String, cantidad: String, hora: String): Boolean {
+        return nombre.isNotBlank() && hora.isNotBlank()
     }
 
-    // --- Lógica de Validación y Guardado ---
-
-    private fun validateForm() {
-        _uiState.update {
-            it.copy(
-                isFormValid = it.nombre.isNotBlank() &&
-                        it.cantidad.isNotBlank() &&
-                        it.hora.isNotBlank()
-            )
-        }
+    // --- Reminder extras ---
+    fun setReminderExtras(recordatorioTipo: String, remindBeforeMinutes: Int) {
+        reminderTipoLocal = recordatorioTipo
+        remindBeforeLocal = remindBeforeMinutes
     }
 
-    fun saveMedication(onSaveSuccess: () -> Unit) {
+    // --- Guardar medicamento en base de datos ---
+    fun saveMedication(onDone: () -> Unit = {}) {
         val state = _uiState.value
-        if (state.isFormValid) {
-            val nuevoMedicamento = Medicamento(
+        viewModelScope.launch {
+            val med = Medicamento(
                 nombre = state.nombre,
-                cantidad = state.cantidad,
+                cantidad = state.cantidad.ifBlank { null },
                 frecuencia = state.frecuencia,
-                hora = state.hora,
-                tipo = state.tipo
+                hora = state.hora.ifBlank { null },
+                recordatorioTipo = reminderTipoLocal,
+                remindBeforeMinutes = remindBeforeLocal,
+                tomado = false
             )
-
-            viewModelScope.launch {
-                dao.insertar(nuevoMedicamento)
-                // Mostrar notificación y navegar
-                _uiState.update { it.copy(showSuccessToast = true) }
-                onSaveSuccess()
-            }
+            dao.insertar(med)
+            // mostrar toast y limpiar formulario (opcional)
+            _uiState.update { it.copy(showSuccessToast = true) }
+            // Llamada al callback (navegar atrás, etc.)
+            onDone()
         }
     }
 
+    // Llamar desde la UI para resetear el flag del toast
     fun toastShown() {
-        // Reiniciar el flag de notificación después de que se muestra
         _uiState.update { it.copy(showSuccessToast = false) }
     }
 }

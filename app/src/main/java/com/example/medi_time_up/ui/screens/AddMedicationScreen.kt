@@ -1,147 +1,200 @@
 package com.example.medi_time_up.ui.screens
 
+import android.app.TimePickerDialog
+import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.medi_time_up.data.AppDatabase
-import com.example.medi_time_up.data.dao.MedicamentoDao
-import com.example.medi_time_up.ui.components.buttons.PrimaryButton
+import androidx.navigation.NavController
 import com.example.medi_time_up.ui.components.form.CustomTextField
-import com.example.medi_time_up.ui.components.utility.ToastNotification
-import com.example.medi_time_up.viewmodel.AddMedicationViewModel
-import java.lang.IllegalArgumentException
+import com.example.medi_time_up.ui.theme.MediLight
+import com.example.medi_time_up.ui.theme.MediVeryDark
+import java.util.Calendar
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddMedicationScreen(
-    onNavigateBack: () -> Unit,
-
+    navController: NavController,
+    onSaveMedication: (
+        name: String,
+        dosage: String,
+        time: String,
+        days: List<String>,
+        remindBefore: Boolean
+    ) -> Unit
 ) {
 
     val context = LocalContext.current
 
-    val dao: MedicamentoDao = AppDatabase.getDatabase(context).medicamentoDao()
+    var name by remember { mutableStateOf("") }
+    var dosage by remember { mutableStateOf("") }
+    var selectedTime by remember { mutableStateOf("") }
+    var remindBefore by remember { mutableStateOf(false) }
 
-    val viewModel: AddMedicationViewModel = viewModel(
-        factory = AddMedicationViewModelFactory(dao)
+    // Selección de días (Calendario simple semanal)
+    val daysOfWeek = listOf(
+        "Lunes", "Martes", "Miércoles",
+        "Jueves", "Viernes", "Sábado", "Domingo"
     )
+    val selectedDays = remember { mutableStateListOf<String>() }
 
-    val state by viewModel.uiState.collectAsState()
-
-    Scaffold(
-        topBar = {
-            TopAppBar(title = { Text("Agregar medicamento") })
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .padding(paddingValues)
-                .padding(horizontal = 16.dp)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Spacer(Modifier.height(8.dp))
-
-            // 1. Nombre del medicamento
-            CustomTextField(
-                value = state.nombre,
-                onValueChange = viewModel::updateNombre,
-                label = "Nombre del medicamento"
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            // 2. Cantidad (Input con KeyboardType.Number)
-            CustomTextField(
-                value = state.cantidad,
-                onValueChange = viewModel::updateCantidad,
-                label = "Cantidad (ej. 500 mg)",
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            // 3. Frecuencia y Hora
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                CustomTextField(
-                    value = state.frecuencia,
-                    onValueChange = viewModel::updateFrecuencia,
-                    label = "Frecuencia",
-                    modifier = Modifier.weight(1f)
-                )
-                CustomTextField(
-                    value = state.hora,
-                    onValueChange = viewModel::updateHora,
-                    label = "Hora (ej. 8:00 AM)",
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Spacer(Modifier.height(32.dp))
-
-            // Botón Escanear receta
-            Button(
-                onClick = { /* Lógica de escaner */ },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
-            ) {
-                // ICONOS ARREGLADOS
-                Icon(Icons.Filled.CameraAlt, contentDescription = "Escanear")
-                Spacer(Modifier.width(8.dp))
-                Text("Escanear receta")
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            // Botón Guardar
-            PrimaryButton(
-                text = "Guardar",
-                onClick = { viewModel.saveMedication(onNavigateBack) },
-                enabled = state.isFormValid
-            )
-
-            Spacer(Modifier.height(32.dp))
-        }
+    fun toggleDay(day: String) {
+        if (day in selectedDays) selectedDays.remove(day)
+        else selectedDays.add(day)
     }
 
-    // Mostrar Toast si el ViewModel lo indica
-    if (state.showSuccessToast) {
-        ToastNotification(message = "Recordatorio guardado con éxito.")
-        viewModel.toastShown() // Limpiar el estado
+    val calendar = Calendar.getInstance()
+
+    val timePicker = TimePickerDialog(
+        context,
+        { _, hour, minute ->
+            selectedTime = String.format("%02d:%02d", hour, minute)
+        },
+        calendar.get(Calendar.HOUR_OF_DAY),
+        calendar.get(Calendar.MINUTE),
+        true
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(20.dp)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+
+        Text(
+            text = "Agregar Medicamento",
+            style = MaterialTheme.typography.headlineMedium,
+            color = MediVeryDark
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Campo Nombre
+        CustomTextField(
+            value = name,
+            onValueChange = { name = it },
+            label = "Nombre del medicamento"
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Campo Dosificación
+        CustomTextField(
+            value = dosage,
+            onValueChange = { dosage = it },
+            label = "Dosis",
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Selección de hora
+        Text("Hora de toma", color = MediVeryDark)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp)
+                .border(3.dp, MediVeryDark, RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .clickable { timePicker.show() }
+                .padding(14.dp)
+        ) {
+            Text(
+                text = if (selectedTime.isEmpty()) "Seleccionar hora" else selectedTime,
+                color = if (selectedTime.isEmpty()) Color.Gray else MediVeryDark
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Calendario Semanal
+        Text("¿Qué días tomará el medicamento?", color = MediVeryDark)
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        daysOfWeek.chunked(3).forEach { rowDays ->
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                rowDays.forEach { day ->
+                    DaySelector(
+                        day = day,
+                        isSelected = day in selectedDays,
+                        onClick = { toggleDay(day) }
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Checkbox Recordatorio 5 min antes
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(checked = remindBefore, onCheckedChange = { remindBefore = it })
+            Text("Recordarme 5 minutos antes")
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // Botón Guardar
+        Button(
+            onClick = {
+                if (name.isBlank() || dosage.isBlank() || selectedTime.isBlank() || selectedDays.isEmpty()) {
+                    Toast.makeText(
+                        context,
+                        "Completa todos los campos",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    onSaveMedication(name, dosage, selectedTime, selectedDays.toList(), remindBefore)
+                    navController.popBackStack()
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text("Guardar medicamento")
+        }
     }
 }
 
-/**
- * Clase Factory simple para que el ViewModel funcione con el DAO de Room.
- * Definida localmente para resolver el error 'Unresolved reference'.
- */
-class AddMedicationViewModelFactory(private val dao: MedicamentoDao) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(AddMedicationViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return AddMedicationViewModel(dao) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
+@Composable
+fun DaySelector(day: String, isSelected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .width(100.dp)
+            .padding(4.dp)
+            .background(
+                if (isSelected) MediLight else MaterialTheme.colorScheme.surface,
+                RoundedCornerShape(10.dp)
+            )
+            .border(
+                2.dp,
+                if (isSelected) MediVeryDark else Color.Gray,
+                RoundedCornerShape(10.dp)
+            )
+            .clickable { onClick() }
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text = day, color = MediVeryDark)
     }
 }

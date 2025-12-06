@@ -1,5 +1,6 @@
 package com.example.medi_time_up.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -8,10 +9,17 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -20,6 +28,10 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.medi_time_up.data.AppDatabase
 import com.example.medi_time_up.data.Medicamento
+import com.example.medi_time_up.ui.components.buttons.PrimaryButton
+import com.example.medi_time_up.ui.theme.MediDark
+import com.example.medi_time_up.ui.theme.MediLight
+import com.example.medi_time_up.ui.theme.MediVeryDark
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,7 +44,7 @@ import java.lang.IllegalArgumentException
 fun ReminderListScreen(
     onAddMedicationClick: () -> Unit
 ) {
-    val context = LocalContext.current
+    val context = LocalContext .current
 
     val dao = AppDatabase.getDatabase(context).medicamentoDao()
     val viewModel: ReminderListViewModel = viewModel(
@@ -76,7 +88,7 @@ fun MedicationList(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         items(medicamentos, key = { it.id }) { medicamento ->
             MedicationItem(medicamento = medicamento, onDelete = onDelete)
@@ -84,37 +96,107 @@ fun MedicationList(
     }
 }
 
+/**
+ * Item con estilo 3D: base desplazada (oscura) + superficie con gradiente, borde claro y contenido.
+ */
 @Composable
 fun MedicationItem(
     medicamento: Medicamento,
     onDelete: (Medicamento) -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(2.dp)
+    val corner = 12.dp
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 72.dp)
     ) {
-        Row(
+        // Base (sombra / pedestal)
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(y = 6.dp)
+                .drawBehind {
+                    // base sólida oscura
+                    drawRect(MediVeryDark)
+                }
+                .padding(0.dp)
+        )
+
+        // Superficie (arriba) con gradiente y borde claro
+        Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .wrapContentHeight()
+                .align(Alignment.TopStart),
+            shape = MaterialTheme.shapes.medium,
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp) // manejamos la "elevación" visual manualmente
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = medicamento.nombre,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(text = "Dosis: ${medicamento.cantidad}", style = MaterialTheme.typography.bodyMedium)
-                Text(text = "Frecuencia: ${medicamento.frecuencia}", style = MaterialTheme.typography.bodySmall)
-                Text(text = "Próxima Hora: ${medicamento.hora}", style = MaterialTheme.typography.bodySmall)
-            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(MediDark, MediDark.copy(alpha = 0.95f))
+                        )
+                    )
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = medicamento.nombre,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(text = "Dosis: ${medicamento.cantidad}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                    Text(text = "Frecuencia: ${medicamento.frecuencia}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                    Text(text = "Próxima Hora: ${medicamento.hora}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                }
 
-            IconButton(onClick = { onDelete(medicamento) }) {
-                Icon(Icons.Filled.Delete, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.error)
+                // Borde iluminado (simula canto) y botón eliminar
+                Box(
+                    modifier = Modifier
+                        .padding(start = 8.dp)
+                ) {
+                    IconButton(onClick = { onDelete(medicamento) }) {
+                        Icon(Icons.Filled.Delete, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.error)
+                    }
+                }
             }
         }
+
+        // Borde ligero encima de la superficie para simular canto iluminado
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .drawBehind {
+                    val stroke = 4f
+                    drawIntoCanvas { canvas ->
+                        withTransform({
+                            // no transform
+                        }) {
+                            val paint = androidx.compose.ui.graphics.Paint().apply {
+                                color = MediLight.copy(alpha = 0.65f)
+                                this.asFrameworkPaint().strokeWidth = stroke
+                                this.asFrameworkPaint().style = android.graphics.Paint.Style.STROKE
+                                this.asFrameworkPaint().isAntiAlias = true
+                            }
+                            val r = size
+                            canvas.drawRoundRect(
+                                left = 0f,
+                                top = 0f,
+                                right = r.width,
+                                bottom = r.height - 6.dp.toPx(), // no sobrepasar la base
+                                radiusX = 12.dp.toPx(),
+                                radiusY = 12.dp.toPx(),
+                                paint = paint
+                            )
+                        }
+                    }
+                }
+        )
     }
 }
 
@@ -137,9 +219,18 @@ fun EmptyState(onAddMedicationClick: () -> Unit) {
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.padding(bottom = 32.dp)
         )
-        Button(onClick = onAddMedicationClick) {
-            Text("Agregar Recordatorio Ahora")
-        }
+
+        // Botón 3D principal para agregar (coherente con diseño)
+        PrimaryButton(
+            text = "Agregar Recordatorio Ahora",
+            onClick = onAddMedicationClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            enabled = true,
+            height = 52.dp,
+            cornerRadius = 10.dp
+        )
     }
 }
 

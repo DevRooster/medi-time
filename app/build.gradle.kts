@@ -61,7 +61,7 @@ dependencies {
     // Dependencias de Room
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
-    kapt(libs.androidx.room.compiler) // <- usar kapt en lugar de annotationProcessor
+    kapt("androidx.room:room-compiler:2.8.4") // <- usar kapt en lugar de annotationProcessor
 
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
     implementation("androidx.compose.material:material-icons-extended")

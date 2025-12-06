@@ -3,22 +3,16 @@ package com.example.medi_time_up.data
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-/**
- * Entidad que representa la tabla 'medicamentos' en la base de datos Room.
- */
 @Entity(tableName = "medicamentos")
 data class Medicamento(
-    @PrimaryKey(autoGenerate = true)
-    val id: Int = 0,
-    val nombre: String, // Amoxicilina
-    val cantidad: String, // 500 mg
-    val frecuencia: String, // 3 veces al día
-    val hora: String, // 08:00 AM
-    val tipo: String // Pastilla, Inyección, Gota (Para el icono)
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val nombre: String,
+    val cantidad: String?,
+    val frecuencia: String?,   // "Una vez", "Diario", "Semanal", "Mensual"
+    val hora: String?,         // texto de hora (ej. "08:00")
+    // Nuevos campos:
+    val recordatorioTipo: String = "ALARMA", // por ahora "ALARMA" (puede extenderse)
+    val remindBeforeMinutes: Int = 0,        // cuántos minutos antes recordar (0 = no)
+    val tomado: Boolean = false,             // si se marcó como "tomado" (para reporte)
+    val createdAt: Long = System.currentTimeMillis()
 )
-// agregar recordatorio tipo alarma (recordar 5 min antes con un checkbox o select )
-// OPCIONAL(hacer un reporte de los medicamentos tomados)
-// agregar un calendario semanal y/o mensual de recordatorio de medicamentos
-// mejorar la paleta de colores
-// mejorar el diseno del formaulario
-// borrar el escaner
