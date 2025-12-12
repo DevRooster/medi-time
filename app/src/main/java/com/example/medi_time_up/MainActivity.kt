@@ -6,8 +6,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavType
@@ -27,12 +26,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
-import kotlinx.coroutines.flow.Flow // opcional, pero ayuda a entender tipos
-import androidx.compose.runtime.collectAsState
+
+private const val TAG = "MainActivity"
 
 class MainActivity : ComponentActivity() {
-
-    private val TAG = "MainActivity"
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -47,8 +44,7 @@ class MainActivity : ComponentActivity() {
                 val scheduleDao = remember { AppDatabase.getDatabase(context).scheduledMedicationDao() }
 
                 // Observamos todos los schedules en la DB (Flow -> State)
-                // **IMPORTANTE**: especificamos el tipo del initial para ayudar al compilador
-                val schedulesState by scheduleDao.getAllSchedules().collectAsState(initial = emptyList<ScheduledMedication>())
+                val schedulesState by scheduleDao.getAllSchedules().collectAsState(initial = emptyList())
 
                 NavHost(navController = navController, startDestination = "calendar") {
                     // ---------- Calendar (pantalla principal) ----------
@@ -58,6 +54,25 @@ class MainActivity : ComponentActivity() {
                             onAddSchedule = { epochDay ->
                                 // Navegar a la pantalla de añadir schedule pasando epochDay como argumento
                                 navController.navigate("addSchedule/$epochDay")
+                            },
+                            onEditSchedule = { sched ->
+                                // navegar a la pantalla de edición por id
+                                navController.navigate("editSchedule/${sched.id}")
+                            },
+                            onDeleteSchedule = { sched ->
+                                // cancelar alarms y borrar en background, luego toast
+                                lifecycleScope.launch {
+                                    try {
+                                        withContext(Dispatchers.IO) {
+                                            AlarmScheduler.cancelSchedule(applicationContext, sched)
+                                            AppDatabase.getDatabase(applicationContext).scheduledMedicationDao().delete(sched)
+                                        }
+                                        Toast.makeText(applicationContext, "Registro eliminado", Toast.LENGTH_SHORT).show()
+                                    } catch (t: Throwable) {
+                                        Log.e(TAG, "Error eliminando schedule", t)
+                                        Toast.makeText(applicationContext, "Error eliminando: ${t.message}", Toast.LENGTH_LONG).show()
+                                    }
+                                }
                             }
                         )
                     }
@@ -83,6 +98,50 @@ class MainActivity : ComponentActivity() {
                                 navController.popBackStack()
                             }
                         )
+                    }
+
+                    // ---------- Edit schedule (dialog) by id ----------
+                    composable(
+                        route = "editSchedule/{scheduleId}",
+                        arguments = listOf(navArgument("scheduleId") { type = NavType.LongType })
+                    ) { backStackEntry ->
+                        val scheduleId = backStackEntry.arguments?.getLong("scheduleId") ?: -1L
+                        val dao = AppDatabase.getDatabase(applicationContext).scheduledMedicationDao()
+
+                        // existing entity to edit
+                        var existing by remember { mutableStateOf<ScheduledMedication?>(null) }
+
+                        // Load the existing schedule once
+                        LaunchedEffect(scheduleId) {
+                            if (scheduleId > 0L) {
+                                try {
+                                    // Requiere que tu DAO tenga suspend fun getById(id: Long): ScheduledMedication?
+                                    existing = withContext(Dispatchers.IO) {
+                                        dao.getById(scheduleId)
+                                    }
+                                } catch (t: Throwable) {
+                                    Log.e(TAG, "Error cargando schedule id=$scheduleId", t)
+                                }
+                            }
+                        }
+
+                        // Si ya cargamos la entidad, mostramos el diálogo para editarla
+                        if (existing != null) {
+                            AddScheduleDialog(
+                                preselectedEpochDay = existing!!.startEpochDay,
+                                dao = dao,
+                                existing = existing,
+                                onClose = { navController.popBackStack() },
+                                onSaved = { saved ->
+                                    Toast.makeText(applicationContext, "Registro actualizado", Toast.LENGTH_SHORT).show()
+                                    navController.popBackStack()
+                                }
+                            )
+                        } else {
+                            // Mientras carga, mostramos un dialogo simple o nada.
+                            // Para evitar pantalla en blanco, mostramos un pequeño placeholder
+                            // y la UI volverá cuando existing no sea null.
+                        }
                     }
 
                     // ---------- Lista tradicional (opcional) ----------

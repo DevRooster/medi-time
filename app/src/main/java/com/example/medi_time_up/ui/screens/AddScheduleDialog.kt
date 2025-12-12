@@ -3,6 +3,7 @@ package com.example.medi_time_up.ui.screens
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Context
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -15,36 +16,44 @@ import com.example.medi_time_up.util.hhmmFormatter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.LocalTime
-import java.time.format.DateTimeFormatter
-import java.util.*
 
+private const val TAG = "AddScheduleDialog"
+
+/**
+ * Si `existing` es null -> crear nuevo. Si no -> editar.
+ * onSaved(scheduleWithId) será llamado en el hilo principal después de insertar/actualizar y programar alarmas.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddScheduleDialog(
     preselectedEpochDay: Long,
     dao: ScheduledMedicationDao,
+    existing: ScheduledMedication? = null,
     onClose: () -> Unit,
     onSaved: (ScheduledMedication) -> Unit
 ) {
     val context = LocalContext.current
     val initialDate = LocalDate.ofEpochDay(preselectedEpochDay)
 
-    var nombre by remember { mutableStateOf("") }
-    var tipo by remember { mutableStateOf("Pastilla") }
-    var dosis by remember { mutableStateOf("") }
+    var nombre by remember { mutableStateOf(existing?.nombre ?: "") }
+    var tipo by remember { mutableStateOf(existing?.tipo ?: "Pastilla") }
+    var dosis by remember { mutableStateOf(existing?.dosis ?: "") }
 
-    var startEpochDay by remember { mutableStateOf(initialDate.toEpochDay()) }
-    var endEpochDay by remember { mutableStateOf(initialDate.toEpochDay()) }
+    var startEpochDay by remember { mutableStateOf(existing?.startEpochDay ?: initialDate.toEpochDay()) }
+    var endEpochDay by remember { mutableStateOf(existing?.endEpochDay ?: initialDate.toEpochDay()) }
 
-    var modeInterval by remember { mutableStateOf(true) } // true = intervalo en horas, false = timesPerDay
+    var modeInterval by remember { mutableStateOf(true) } // true = intervalo en horas
     var intervalHours by remember { mutableStateOf(8) }
     var timesPerDay by remember { mutableStateOf(3) }
 
-    // hora inicial
-    var initialHour by remember { mutableStateOf(LocalTime.of(8, 0)) }
+    var initialHour by remember { mutableStateOf(existing?.timesCsv?.split(",")?.firstOrNull()?.let {
+        val p = it.split(":"); LocalTime.of(p[0].toInt(), p[1].toInt())
+    } ?: LocalTime.of(8,0)) }
 
-    var remindBefore by remember { mutableStateOf(0) }
+    var remindBefore by remember { mutableStateOf(existing?.remindBeforeMinutes ?: 0) }
 
     val timePicker = TimePickerDialog(context, { _, h, m ->
         initialHour = LocalTime.of(h, m)
@@ -52,14 +61,14 @@ fun AddScheduleDialog(
 
     fun showDatePicker(initial: LocalDate, onPick: (LocalDate) -> Unit) {
         val dp = DatePickerDialog(context, { _, y, mo, d ->
-            onPick(LocalDate.of(y, mo+1, d)) // month param in DatePickerDialog is 0-based in some APIs; adjust if necessary
+            onPick(LocalDate.of(y, mo + 1, d))
         }, initial.year, initial.monthValue - 1, initial.dayOfMonth)
         dp.show()
     }
 
     AlertDialog(
         onDismissRequest = onClose,
-        title = { Text("Agregar recordatorio") },
+        title = { Text(if (existing == null) "Agregar recordatorio" else "Editar recordatorio") },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(value = nombre, onValueChange = { nombre = it }, label = { Text("Nombre") }, modifier = Modifier.fillMaxWidth())
@@ -67,7 +76,6 @@ fun AddScheduleDialog(
                 OutlinedTextField(value = dosis, onValueChange = { dosis = it }, label = { Text("Dosis (ej. 500 mg)") }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
 
-                // Modo
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { modeInterval = true }) { Text("Intervalo (hrs)") }
                     Button(onClick = { modeInterval = false }) { Text("Veces por día") }
@@ -75,39 +83,61 @@ fun AddScheduleDialog(
                 Spacer(Modifier.height(8.dp))
 
                 if (modeInterval) {
-                    OutlinedTextField(value = intervalHours.toString(), onValueChange = { intervalHours = it.toIntOrNull() ?: 8 }, label = { Text("Intervalo en horas (ej. 8)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(
+                        value = intervalHours.toString(),
+                        onValueChange = { intervalHours = it.toIntOrNull() ?: intervalHours },
+                        label = { Text("Intervalo en horas (ej. 8)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 } else {
-                    OutlinedTextField(value = timesPerDay.toString(), onValueChange = { timesPerDay = it.toIntOrNull() ?: 1 }, label = { Text("Veces por día (ej. 3)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(
+                        value = timesPerDay.toString(),
+                        onValueChange = { timesPerDay = it.toIntOrNull() ?: timesPerDay },
+                        label = { Text("Veces por día (ej. 3)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
 
                 Spacer(Modifier.height(8.dp))
                 Row {
-                    Button(onClick = { timePicker.show() }) { Text("Seleccionar hora inicial: ${initialHour.format(hhmmFormatter)}") }
+                    Button(onClick = { timePicker.show() }) { Text("Hora inicial: ${initialHour.format(hhmmFormatter)}") }
                 }
                 Spacer(Modifier.height(8.dp))
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { showDatePicker(LocalDate.ofEpochDay(startEpochDay)) { startEpochDay = it.toEpochDay() } }) { Text("Inicio: ${LocalDate.ofEpochDay(startEpochDay)}") }
-                    Button(onClick = { showDatePicker(LocalDate.ofEpochDay(endEpochDay)) { endEpochDay = it.toEpochDay() } }) { Text("Fin: ${LocalDate.ofEpochDay(endEpochDay)}") }
+                    Button(onClick = { showDatePicker(LocalDate.ofEpochDay(startEpochDay)) { startEpochDay = it.toEpochDay() } }) {
+                        Text("Inicio: ${LocalDate.ofEpochDay(startEpochDay)}")
+                    }
+                    Button(onClick = { showDatePicker(LocalDate.ofEpochDay(endEpochDay)) { endEpochDay = it.toEpochDay() } }) {
+                        Text("Fin: ${LocalDate.ofEpochDay(endEpochDay)}")
+                    }
                 }
 
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = remindBefore.toString(), onValueChange = { remindBefore = it.toIntOrNull() ?: 0 }, label = { Text("Recordar X minutos antes (0 = no)") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = remindBefore.toString(), onValueChange = { remindBefore = it.toIntOrNull() ?: remindBefore }, label = { Text("Recordar X minutos antes (0 = no)") }, modifier = Modifier.fillMaxWidth())
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                // Calculamos timesCsv
+                // Validación mínima
+                if (nombre.isBlank()) {
+                    // mostrar simple toast
+                    // necesitamos un contexto: usamos Context.current
+                    // pero aquí (composable) no usamos Toast. En MainActivity se puede validar más.
+                }
+
+                // Generar timesCsv
                 val times = mutableListOf<LocalTime>()
                 if (modeInterval) {
                     var t = initialHour
-                    while (t.hour < 24) {
+                    // recorre hasta completar 24h
+                    var guard = 0
+                    while (guard++ < 24) {
                         times.add(t)
                         t = t.plusHours(intervalHours.toLong())
-                        if (times.size > 24) break
+                        if (t == initialHour) break
                     }
                 } else {
-                    // Generar evenly spaced times starting from initialHour
                     val spacing = 24.0 / timesPerDay
                     for (i in 0 until timesPerDay) {
                         val minutes = (initialHour.toSecondOfDay() / 60 + (spacing * 60 * i)).toInt() % (24*60)
@@ -118,8 +148,9 @@ fun AddScheduleDialog(
                 }
                 val timesCsv = times.joinToString(",") { it.format(hhmmFormatter) }
 
-                // Insert schedule
-                val schedule = ScheduledMedication(
+                // Construir entidad (si existing != null, conservamos id)
+                val toSave = ScheduledMedication(
+                    id = existing?.id ?: 0,
                     nombre = nombre,
                     tipo = tipo,
                     dosis = dosis,
@@ -131,16 +162,38 @@ fun AddScheduleDialog(
                     active = true
                 )
 
-                // Insert async
+                // Insert / Update + schedule alarms en background
                 CoroutineScope(Dispatchers.IO).launch {
-                    val id = dao.insert(schedule)
-                    // schedule alarms via helper (on main thread or in IO)
-                    AlarmScheduler.scheduleForSchedule(context, schedule.copy(id = id))
+                    try {
+                        if (existing == null) {
+                            val newId = dao.insert(toSave)
+                            val saved = toSave.copy(id = newId)
+                            // schedule alarms
+                            AlarmScheduler.scheduleForSchedule(context, saved)
+                            // notificar en UI thread
+                            withContext(Dispatchers.Main) {
+                                onSaved(saved)
+                            }
+                        } else {
+                            // update: cancel old alarms (by id) then update schedule and reschedule
+                            AlarmScheduler.cancelSchedule(context, existing)
+                            dao.update(toSave)
+                            // reschedule using same id
+                            AlarmScheduler.scheduleForSchedule(context, toSave)
+                            withContext(Dispatchers.Main) {
+                                onSaved(toSave)
+                            }
+                        }
+                    } catch (t: Throwable) {
+                        Log.e(TAG, "Error saving schedule", t)
+                        // podrías notificar el error al usuario
+                    }
                 }
-                onSaved(schedule)
+
+                // cerrar diálogo inmediatamente (UI seguirá actualizándose por Flow)
                 onClose()
             }) {
-                Text("Guardar")
+                Text(if (existing == null) "Guardar" else "Actualizar")
             }
         },
         dismissButton = {

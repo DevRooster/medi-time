@@ -21,6 +21,9 @@ interface ScheduledMedicationDao {
     @Query("SELECT * FROM scheduled_medications WHERE active = 1")
     suspend fun getActiveSchedules(): List<ScheduledMedication>
 
+    @Query("SELECT * FROM scheduled_medications WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): ScheduledMedication?
+
     @Query("SELECT * FROM scheduled_medications WHERE NOT (endEpochDay < :fromEpochDay OR startEpochDay > :toEpochDay)")
     suspend fun getSchedulesBetween(fromEpochDay: Long, toEpochDay: Long): List<ScheduledMedication>
 }
