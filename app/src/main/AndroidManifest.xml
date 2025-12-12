@@ -2,6 +2,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Permisos -->
+    <!-- Necesario para reprogramar alarmas al arrancar -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Para vibración (opcional) -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Para notificaciones en Android 13+: deberás pedirlo en tiempo de ejecución también -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Permiso recomendado para alarmas exactas (Android 12+).
+         Nota: este permiso es especial y el usuario puede desactivarlo desde Ajustes. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" tools:ignore="ProtectedPermissions" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -11,6 +22,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Meditimeup">
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -18,10 +30,30 @@
             android:theme="@style/Theme.Meditimeup">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Receptor que muestra la notificación. No necesita intent-filter público. -->
+        <receiver
+            android:name="com.example.medi_time_up.receivers.NotificationPublisher"
+            android:exported="false" />
+
+        <!-- Receptor para reprogramar alarmas al arrancar el dispositivo.
+             Debe declarar el intent-filter BOOT_COMPLETED y normalmente ser exportado -->
+        <receiver
+            android:name="com.example.medi_time_up.receivers.BootReceiver"
+            android:exported="true"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <!-- Opcional: si quieres también manejar RESTORE or other boot actions -->
+            </intent-filter>
+        </receiver>
+
+        <!-- Si usas un receiver para alarmas repetitivas o para clicks de la notificación,
+             regístralo aquí de forma similar. -->
+
     </application>
 
 </manifest>
