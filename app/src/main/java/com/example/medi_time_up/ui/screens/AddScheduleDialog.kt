@@ -2,7 +2,6 @@ package com.example.medi_time_up.ui.screens
 
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
-import android.content.Context
 import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -22,10 +21,6 @@ import java.time.LocalTime
 
 private const val TAG = "AddScheduleDialog"
 
-/**
- * Si `existing` es null -> crear nuevo. Si no -> editar.
- * onSaved(scheduleWithId) será llamado en el hilo principal después de insertar/actualizar y programar alarmas.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddScheduleDialog(
@@ -45,13 +40,17 @@ fun AddScheduleDialog(
     var startEpochDay by remember { mutableStateOf(existing?.startEpochDay ?: initialDate.toEpochDay()) }
     var endEpochDay by remember { mutableStateOf(existing?.endEpochDay ?: initialDate.toEpochDay()) }
 
-    var modeInterval by remember { mutableStateOf(true) } // true = intervalo en horas
+    var modeInterval by remember { mutableStateOf(true) }
     var intervalHours by remember { mutableStateOf(8) }
     var timesPerDay by remember { mutableStateOf(3) }
 
-    var initialHour by remember { mutableStateOf(existing?.timesCsv?.split(",")?.firstOrNull()?.let {
-        val p = it.split(":"); LocalTime.of(p[0].toInt(), p[1].toInt())
-    } ?: LocalTime.of(8,0)) }
+    var initialHour by remember {
+        mutableStateOf(
+            existing?.timesCsv?.split(",")?.firstOrNull()?.let {
+                val p = it.split(":"); LocalTime.of(p[0].toInt(), p[1].toInt())
+            } ?: LocalTime.of(8, 0)
+        )
+    }
 
     var remindBefore by remember { mutableStateOf(existing?.remindBeforeMinutes ?: 0) }
 
@@ -119,18 +118,17 @@ fun AddScheduleDialog(
         },
         confirmButton = {
             TextButton(onClick = {
-                // Validación mínima
+                // Validate
                 if (nombre.isBlank()) {
-                    // mostrar simple toast
-                    // necesitamos un contexto: usamos Context.current
-                    // pero aquí (composable) no usamos Toast. En MainActivity se puede validar más.
+                    // simple guard
+                    return@TextButton
                 }
 
-                // Generar timesCsv
+                // Build times list
                 val times = mutableListOf<LocalTime>()
                 if (modeInterval) {
                     var t = initialHour
-                    // recorre hasta completar 24h
+                    // avoid infinite loops: guard up to 24 iterations
                     var guard = 0
                     while (guard++ < 24) {
                         times.add(t)
@@ -140,15 +138,15 @@ fun AddScheduleDialog(
                 } else {
                     val spacing = 24.0 / timesPerDay
                     for (i in 0 until timesPerDay) {
-                        val minutes = (initialHour.toSecondOfDay() / 60 + (spacing * 60 * i)).toInt() % (24*60)
+                        val minutes = (initialHour.toSecondOfDay() / 60 + (spacing * 60 * i)).toInt() % (24 * 60)
                         val hh = minutes / 60
                         val mm = minutes % 60
                         times.add(LocalTime.of(hh, mm))
                     }
                 }
+
                 val timesCsv = times.joinToString(",") { it.format(hhmmFormatter) }
 
-                // Construir entidad (si existing != null, conservamos id)
                 val toSave = ScheduledMedication(
                     id = existing?.id ?: 0,
                     nombre = nombre,
@@ -162,23 +160,21 @@ fun AddScheduleDialog(
                     active = true
                 )
 
-                // Insert / Update + schedule alarms en background
+                // Background work
                 CoroutineScope(Dispatchers.IO).launch {
                     try {
                         if (existing == null) {
                             val newId = dao.insert(toSave)
                             val saved = toSave.copy(id = newId)
-                            // schedule alarms
                             AlarmScheduler.scheduleForSchedule(context, saved)
-                            // notificar en UI thread
+                            // Inform main/UI AFTER success
                             withContext(Dispatchers.Main) {
-                                onSaved(saved)
+                                onSaved(saved) // caller (MainActivity) will popBackStack / close dialog
                             }
                         } else {
-                            // update: cancel old alarms (by id) then update schedule and reschedule
+                            // Update: cancel old alarms, update DB, reschedule
                             AlarmScheduler.cancelSchedule(context, existing)
                             dao.update(toSave)
-                            // reschedule using same id
                             AlarmScheduler.scheduleForSchedule(context, toSave)
                             withContext(Dispatchers.Main) {
                                 onSaved(toSave)
@@ -186,12 +182,9 @@ fun AddScheduleDialog(
                         }
                     } catch (t: Throwable) {
                         Log.e(TAG, "Error saving schedule", t)
-                        // podrías notificar el error al usuario
                     }
                 }
-
-                // cerrar diálogo inmediatamente (UI seguirá actualizándose por Flow)
-                onClose()
+                // Important: DO NOT call onClose() here — caller handles navigation in onSaved()
             }) {
                 Text(if (existing == null) "Guardar" else "Actualizar")
             }

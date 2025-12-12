@@ -91,11 +91,11 @@ class MainActivity : ComponentActivity() {
                         AddScheduleDialog(
                             preselectedEpochDay = epochDayArg,
                             dao = dao,
-                            onClose = { navController.popBackStack() },
-                            onSaved = { schedule ->
-                                // El diálogo ya programa alarms; podemos mostrar toast y volver
-                                Toast.makeText(applicationContext, "Recordatorio programado", Toast.LENGTH_SHORT).show()
-                                navController.popBackStack()
+                            onClose = { navController.popBackStack() }, // cerrar si cancelas
+                            onSaved = { saved ->
+                                // esto se llama una vez que la BD y AlarmScheduler terminaron
+                                Toast.makeText(applicationContext, "Recordatorio guardado", Toast.LENGTH_SHORT).show()
+                                navController.popBackStack() // <-- solo aquí navegamos
                             }
                         )
                     }
