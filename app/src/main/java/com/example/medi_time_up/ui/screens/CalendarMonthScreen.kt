@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.medi_time_up.data.ScheduledMedication
+import com.example.medi_time_up.ui.components.AppInfoDialog
 import com.example.medi_time_up.ui.components.WavyBackground
 import com.example.medi_time_up.util.epochDayToLocalDate
 import java.time.LocalDate
@@ -39,6 +41,7 @@ fun CalendarMonthScreen(
 
     var monthOffset by remember { mutableStateOf(0) }
     var selectedDay by remember { mutableStateOf<Long?>(null) }
+    var showAppInfo by remember { mutableStateOf(false) }
 
     val displayedMonth = remember(monthOffset) {
         YearMonth.now().plusMonths(monthOffset.toLong())
@@ -83,6 +86,7 @@ fun CalendarMonthScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
+
                 IconButton(onClick = { monthOffset-- }) {
                     Text("‹", style = MaterialTheme.typography.headlineMedium)
                 }
@@ -104,8 +108,17 @@ fun CalendarMonthScreen(
                     )
                 }
 
-                IconButton(onClick = { monthOffset++ }) {
-                    Text("›", style = MaterialTheme.typography.headlineMedium)
+                Row {
+                    IconButton(onClick = { showAppInfo = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "Detalles de la aplicación"
+                        )
+                    }
+
+                    IconButton(onClick = { monthOffset++ }) {
+                        Text("›", style = MaterialTheme.typography.headlineMedium)
+                    }
                 }
             }
 
@@ -183,6 +196,12 @@ fun CalendarMonthScreen(
                         }
                 }
             }
+        }
+
+        if (showAppInfo) {
+            AppInfoDialog(
+                onDismiss = { showAppInfo = false }
+            )
         }
     }
 }
