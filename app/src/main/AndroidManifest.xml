@@ -8,18 +8,20 @@
     <!-- Para vibración (opcional) -->
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Para notificaciones en Android 13+: deberás pedirlo en tiempo de ejecución también -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- Permiso recomendado para alarmas exactas (Android 12+).
          Nota: este permiso es especial y el usuario puede desactivarlo desde Ajustes. -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" tools:ignore="ProtectedPermissions" />
-
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:name=".MediTimeApp"
+
+    android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Meditimeup">
 
@@ -36,7 +38,7 @@
 
         <!-- Receptor que muestra la notificación. No necesita intent-filter público. -->
         <receiver
-            android:name="com.example.medi_time_up.receivers.NotificationPublisher"
+            android:name=".receivers.NotificationReceiver"
             android:exported="false" />
 
         <!-- Receptor para reprogramar alarmas al arrancar el dispositivo.
