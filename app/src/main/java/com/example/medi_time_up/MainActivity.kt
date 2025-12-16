@@ -15,13 +15,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.medi_time_up.data.AppDatabase
-import com.example.medi_time_up.data.Medicamento
 import com.example.medi_time_up.data.ScheduledMedication
-import com.example.medi_time_up.receivers.NotificationReceiver
-import com.example.medi_time_up.ui.screens.AddMedicationScreen
 import com.example.medi_time_up.ui.screens.AddScheduleDialog
 import com.example.medi_time_up.ui.screens.CalendarMonthScreen
-import com.example.medi_time_up.ui.screens.ReminderListScreen
 import com.example.medi_time_up.ui.theme.MeditimeupTheme
 import com.example.medi_time_up.util.AlarmScheduler
 import com.example.medi_time_up.util.NotificationChannels
@@ -38,10 +34,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // ✅ Crear canal de notificaciones
+        // Crear canal de notificaciones
         NotificationChannels.create(this)
 
-        // ✅ Pedir permiso de notificaciones (Android 13+)
+        // Permiso de notificaciones (Android 13+)
         if (android.os.Build.VERSION.SDK_INT >= 33) {
             requestPermissions(
                 arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
@@ -51,6 +47,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MeditimeupTheme {
+
                 val navController = rememberNavController()
                 val context = LocalContext.current
 
@@ -62,8 +59,12 @@ class MainActivity : ComponentActivity() {
                     .getAllSchedules()
                     .collectAsState(initial = emptyList())
 
-                NavHost(navController = navController, startDestination = "calendar") {
+                NavHost(
+                    navController = navController,
+                    startDestination = "calendar"
+                ) {
 
+                    // ================= CALENDAR =================
                     composable("calendar") {
                         CalendarMonthScreen(
                             schedulesForMonth = schedulesState,
@@ -77,7 +78,10 @@ class MainActivity : ComponentActivity() {
                                 lifecycleScope.launch {
                                     try {
                                         withContext(Dispatchers.IO) {
-                                            AlarmScheduler.cancelSchedule(applicationContext, sched)
+                                            AlarmScheduler.cancelSchedule(
+                                                applicationContext,
+                                                sched
+                                            )
                                             AppDatabase.getDatabase(applicationContext)
                                                 .scheduledMedicationDao()
                                                 .delete(sched)
@@ -95,13 +99,17 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    // ================= ADD =================
                     composable(
                         route = "addSchedule/{epochDay}",
-                        arguments = listOf(navArgument("epochDay") {
-                            type = NavType.LongType
-                        })
+                        arguments = listOf(
+                            navArgument("epochDay") {
+                                type = NavType.LongType
+                            }
+                        )
                     ) { backStackEntry ->
-                        val epochDayArg =
+
+                        val epochDay =
                             backStackEntry.arguments?.getLong("epochDay")
                                 ?: LocalDate.now().toEpochDay()
 
@@ -110,7 +118,7 @@ class MainActivity : ComponentActivity() {
                             .scheduledMedicationDao()
 
                         AddScheduleDialog(
-                            preselectedEpochDay = epochDayArg,
+                            preselectedEpochDay = epochDay,
                             dao = dao,
                             onClose = { navController.popBackStack() },
                             onSaved = {
@@ -122,6 +130,49 @@ class MainActivity : ComponentActivity() {
                                 navController.popBackStack()
                             }
                         )
+                    }
+
+                    // ================= EDIT =================
+                    composable(
+                        route = "editSchedule/{id}",
+                        arguments = listOf(
+                            navArgument("id") {
+                                type = NavType.LongType
+                            }
+                        )
+                    ) { backStackEntry ->
+
+                        val id = backStackEntry.arguments!!.getLong("id")
+                        val dao = AppDatabase
+                            .getDatabase(applicationContext)
+                            .scheduledMedicationDao()
+
+                        var schedule by remember {
+                            mutableStateOf<ScheduledMedication?>(null)
+                        }
+
+                        LaunchedEffect(id) {
+                            schedule = withContext(Dispatchers.IO) {
+                                dao.getById(id)
+                            }
+                        }
+
+                        schedule?.let { sched ->
+                            AddScheduleDialog(
+                                preselectedEpochDay = sched.startEpochDay,
+                                dao = dao,
+                                existing = sched,
+                                onClose = { navController.popBackStack() },
+                                onSaved = {
+                                    Toast.makeText(
+                                        applicationContext,
+                                        "Recordatorio actualizado",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    navController.popBackStack()
+                                }
+                            )
+                        }
                     }
                 }
             }

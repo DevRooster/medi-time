@@ -41,108 +41,154 @@ fun AddScheduleDialog(
     var startEpochDay by remember { mutableStateOf(existing?.startEpochDay ?: initialDate.toEpochDay()) }
     var endEpochDay by remember { mutableStateOf(existing?.endEpochDay ?: initialDate.toEpochDay()) }
 
-    var modeInterval by remember { mutableStateOf(true) }
+    // ✅ Inicializar modo correctamente al editar
+    var modeInterval by remember {
+        mutableStateOf(existing == null || existing.timesCsv.contains(","))
+    }
+
     var intervalHours by remember { mutableStateOf(8) }
     var timesPerDay by remember { mutableStateOf(3) }
 
     var initialHour by remember {
         mutableStateOf(
-            existing?.timesCsv?.split(",")?.firstOrNull()?.let {
-                val p = it.split(":"); LocalTime.of(p[0].toInt(), p[1].toInt())
-            } ?: LocalTime.of(8, 0)
+            existing?.timesCsv
+                ?.split(",")
+                ?.firstOrNull()
+                ?.let {
+                    val p = it.split(":")
+                    LocalTime.of(p[0].toInt(), p[1].toInt())
+                } ?: LocalTime.of(8, 0)
         )
     }
 
     var remindBefore by remember { mutableStateOf(existing?.remindBeforeMinutes ?: 0) }
 
-    val timePicker = TimePickerDialog(context, { _, h, m ->
-        initialHour = LocalTime.of(h, m)
-    }, initialHour.hour, initialHour.minute, true)
+    val timePicker = TimePickerDialog(
+        context,
+        { _, h, m -> initialHour = LocalTime.of(h, m) },
+        initialHour.hour,
+        initialHour.minute,
+        true
+    )
 
     fun showDatePicker(initial: LocalDate, onPick: (LocalDate) -> Unit) {
-        val dp = DatePickerDialog(context, { _, y, mo, d ->
-            onPick(LocalDate.of(y, mo + 1, d))
-        }, initial.year, initial.monthValue - 1, initial.dayOfMonth)
-        dp.show()
+        DatePickerDialog(
+            context,
+            { _, y, mo, d -> onPick(LocalDate.of(y, mo + 1, d)) },
+            initial.year,
+            initial.monthValue - 1,
+            initial.dayOfMonth
+        ).show()
     }
 
     AlertDialog(
         onDismissRequest = onClose,
         title = { Text(if (existing == null) "Agregar recordatorio" else "Editar recordatorio") },
         text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(value = nombre, onValueChange = { nombre = it }, label = { Text("Nombre") }, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = dosis, onValueChange = { dosis = it }, label = { Text("Dosis (ej. 500 mg)") }, modifier = Modifier.fillMaxWidth())
+            Column(Modifier.fillMaxWidth()) {
+
+                OutlinedTextField(
+                    value = nombre,
+                    onValueChange = { nombre = it },
+                    label = { Text("Nombre") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
                 Spacer(Modifier.height(8.dp))
 
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = dosis,
+                    onValueChange = { dosis = it },
+                    label = { Text("Dosis (ej. 500 mg)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { modeInterval = true }) { Text("Intervalo (hrs)") }
                     Button(onClick = { modeInterval = false }) { Text("Veces por día") }
                 }
+
                 Spacer(Modifier.height(8.dp))
 
                 if (modeInterval) {
                     OutlinedTextField(
                         value = intervalHours.toString(),
-                        onValueChange = { intervalHours = it.toIntOrNull() ?: intervalHours },
-                        label = { Text("Intervalo en horas (ej. 8)") },
+                        onValueChange = {
+                            intervalHours = it.toIntOrNull()?.coerceAtLeast(1) ?: intervalHours
+                        },
+                        label = { Text("Intervalo en horas") },
                         modifier = Modifier.fillMaxWidth()
                     )
                 } else {
                     OutlinedTextField(
                         value = timesPerDay.toString(),
-                        onValueChange = { timesPerDay = it.toIntOrNull() ?: timesPerDay },
-                        label = { Text("Veces por día (ej. 3)") },
+                        onValueChange = {
+                            timesPerDay = it.toIntOrNull()?.coerceAtLeast(1) ?: timesPerDay
+                        },
+                        label = { Text("Veces por día") },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
 
                 Spacer(Modifier.height(8.dp))
-                Row {
-                    Button(onClick = { timePicker.show() }) { Text("Hora inicial: ${initialHour.format(hhmmFormatter)}") }
+
+                Button(onClick = { timePicker.show() }) {
+                    Text("Hora inicial: ${initialHour.format(hhmmFormatter)}")
                 }
+
                 Spacer(Modifier.height(8.dp))
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { showDatePicker(LocalDate.ofEpochDay(startEpochDay)) { startEpochDay = it.toEpochDay() } }) {
+                    Button(onClick = {
+                        showDatePicker(LocalDate.ofEpochDay(startEpochDay)) {
+                            startEpochDay = it.toEpochDay()
+                        }
+                    }) {
                         Text("Inicio: ${LocalDate.ofEpochDay(startEpochDay)}")
                     }
-                    Button(onClick = { showDatePicker(LocalDate.ofEpochDay(endEpochDay)) { endEpochDay = it.toEpochDay() } }) {
+
+                    Button(onClick = {
+                        showDatePicker(LocalDate.ofEpochDay(endEpochDay)) {
+                            endEpochDay = it.toEpochDay()
+                        }
+                    }) {
                         Text("Fin: ${LocalDate.ofEpochDay(endEpochDay)}")
                     }
                 }
 
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = remindBefore.toString(), onValueChange = { remindBefore = it.toIntOrNull() ?: remindBefore }, label = { Text("Recordar X minutos antes (0 = no)") }, modifier = Modifier.fillMaxWidth())
+
+                OutlinedTextField(
+                    value = remindBefore.toString(),
+                    onValueChange = {
+                        remindBefore = it.toIntOrNull()?.coerceAtLeast(0) ?: remindBefore
+                    },
+                    label = { Text("Recordar X minutos antes (0 = no)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                // Validate
-                if (nombre.isBlank()) {
-                    // simple guard
-                    return@TextButton
-                }
 
-                // Build times list
+                if (nombre.isBlank()) return@TextButton
+
                 val times = mutableListOf<LocalTime>()
+
                 if (modeInterval) {
                     var t = initialHour
-                    // avoid infinite loops: guard up to 24 iterations
-                    var guard = 0
-                    while (guard++ < 24) {
+                    repeat(24) {
                         times.add(t)
                         t = t.plusHours(intervalHours.toLong())
-                        if (t == initialHour) break
                     }
                 } else {
                     val spacing = 24.0 / timesPerDay
-                    for (i in 0 until timesPerDay) {
-                        val minutes = (initialHour.toSecondOfDay() / 60 + (spacing * 60 * i)).toInt() % (24 * 60)
-                        val hh = minutes / 60
-                        val mm = minutes % 60
-                        times.add(LocalTime.of(hh, mm))
+                    repeat(timesPerDay) { i ->
+                        val minutes =
+                            ((initialHour.toSecondOfDay() / 60) + spacing * 60 * i).toInt() % 1440
+                        times.add(LocalTime.of(minutes / 60, minutes % 60))
                     }
                 }
 
@@ -161,31 +207,23 @@ fun AddScheduleDialog(
                     active = true
                 )
 
-                // Background work
                 CoroutineScope(Dispatchers.IO).launch {
                     try {
                         if (existing == null) {
                             val newId = dao.insert(toSave)
                             val saved = toSave.copy(id = newId)
                             AlarmScheduler.scheduleForSchedule(context, saved)
-                            // Inform main/UI AFTER success
-                            withContext(Dispatchers.Main) {
-                                onSaved(saved) // caller (MainActivity) will popBackStack / close dialog
-                            }
+                            withContext(Dispatchers.Main) { onSaved(saved) }
                         } else {
-                            // Update: cancel old alarms, update DB, reschedule
                             AlarmScheduler.cancelSchedule(context, existing)
                             dao.update(toSave)
                             AlarmScheduler.scheduleForSchedule(context, toSave)
-                            withContext(Dispatchers.Main) {
-                                onSaved(toSave)
-                            }
+                            withContext(Dispatchers.Main) { onSaved(toSave) }
                         }
                     } catch (t: Throwable) {
                         Log.e(TAG, "Error saving schedule", t)
                     }
                 }
-                // Important: DO NOT call onClose() here — caller handles navigation in onSaved()
             }) {
                 Text(if (existing == null) "Guardar" else "Actualizar")
             }
