@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.medi_time_up.data.ScheduledMedication
+import com.example.medi_time_up.ui.components.WavyBackground
 import com.example.medi_time_up.util.epochDayToLocalDate
 import java.time.LocalDate
 import java.time.YearMonth
@@ -43,7 +44,6 @@ fun CalendarMonthScreen(
         YearMonth.now().plusMonths(monthOffset.toLong())
     }
 
-    // Reset selección al cambiar de mes (evita pantalla blanca)
     LaunchedEffect(displayedMonth) {
         selectedDay = null
     }
@@ -68,124 +68,126 @@ fun CalendarMonthScreen(
         }.toSet()
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
+    // ================= BACKGROUND =================
+    WavyBackground {
 
-        // ---------- HEADER CON NAVEGACIÓN ----------
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
         ) {
-            IconButton(onClick = { monthOffset-- }) {
-                Text("‹", style = MaterialTheme.typography.headlineMedium)
-            }
 
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = displayedMonth.month.getDisplayName(
-                        TextStyle.FULL,
-                        Locale.getDefault()
-                    ),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = displayedMonth.year.toString(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            IconButton(onClick = { monthOffset++ }) {
-                Text("›", style = MaterialTheme.typography.headlineMedium)
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        // ---------- WEEK DAYS ----------
-        Row(Modifier.fillMaxWidth()) {
-            listOf("Dom", "Lun", "Mar", "Mi", "Jue", "Vie", "Sáb").forEach {
-                Text(
-                    text = it,
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.labelSmall,
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        Spacer(Modifier.height(8.dp))
-
-        // ---------- CALENDAR GRID ----------
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(7),
-            modifier = Modifier.heightIn(min = 260.dp),
-            userScrollEnabled = false
-        ) {
-            items(calendarCells) { epochDay ->
-                CalendarDayCell(
-                    epochDay = epochDay,
-                    isToday = epochDay == todayEpoch,
-                    isSelected = epochDay == selectedDay,
-                    hasEvent = epochDay != null && epochDay in daysWithEvents,
-                    onClick = {
-                        epochDay?.let {
-                            if (it in daysWithEvents) {
-                                selectedDay = it
-                            } else {
-                                onAddSchedule(it)
-                            }
-                        }
-                    }
-                )
-            }
-        }
-
-        Spacer(Modifier.height(20.dp))
-
-        // ---------- EVENTS SECTION ----------
-        Text(
-            text = "Medicamentos del día",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(Modifier.height(8.dp))
-
-        when {
-            selectedDay == null ->
-                EmptyState("Selecciona un día del calendario")
-
-            schedulesForMonth.none {
-                selectedDay!! in it.startEpochDay..it.endEpochDay
-            } ->
-                EmptyState("No hay medicamentos para este día")
-
-            else -> {
-                val events = schedulesForMonth.filter {
-                    selectedDay!! in it.startEpochDay..it.endEpochDay
+            // ---------- HEADER ----------
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                IconButton(onClick = { monthOffset-- }) {
+                    Text("‹", style = MaterialTheme.typography.headlineMedium)
                 }
 
-                Column {
-                    events.forEach { sched ->
-                        ScheduleCard(
-                            sched = sched,
-                            onEdit = { onEditSchedule(sched) },
-                            onDelete = { onDeleteSchedule(sched) }
-                        )
-                    }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = displayedMonth.month.getDisplayName(
+                            TextStyle.FULL,
+                            Locale.getDefault()
+                        ),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = displayedMonth.year.toString(),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                IconButton(onClick = { monthOffset++ }) {
+                    Text("›", style = MaterialTheme.typography.headlineMedium)
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // ---------- WEEK DAYS ----------
+            Row(Modifier.fillMaxWidth()) {
+                listOf("Dom", "Lun", "Mar", "Mi", "Jue", "Vie", "Sáb").forEach {
+                    Text(
+                        text = it,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.labelSmall,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // ---------- CALENDAR GRID ----------
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(7),
+                modifier = Modifier.heightIn(min = 260.dp),
+                userScrollEnabled = false
+            ) {
+                items(calendarCells) { epochDay ->
+                    CalendarDayCell(
+                        epochDay = epochDay,
+                        isToday = epochDay == todayEpoch,
+                        isSelected = epochDay == selectedDay,
+                        hasEvent = epochDay != null && epochDay in daysWithEvents,
+                        onClick = {
+                            epochDay?.let {
+                                if (it in daysWithEvents) {
+                                    selectedDay = it
+                                } else {
+                                    onAddSchedule(it)
+                                }
+                            }
+                        }
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            // ---------- EVENTS ----------
+            Text(
+                text = "Medicamentos del día",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            when {
+                selectedDay == null ->
+                    EmptyState("Selecciona un día del calendario")
+
+                schedulesForMonth.none {
+                    selectedDay!! in it.startEpochDay..it.endEpochDay
+                } ->
+                    EmptyState("No hay medicamentos para este día")
+
+                else -> {
+                    schedulesForMonth
+                        .filter { selectedDay!! in it.startEpochDay..it.endEpochDay }
+                        .forEach { sched ->
+                            ScheduleCard(
+                                sched = sched,
+                                onEdit = { onEditSchedule(sched) },
+                                onDelete = { onDeleteSchedule(sched) }
+                            )
+                        }
                 }
             }
         }
     }
 }
+
+/* ==================== COMPONENTES ==================== */
 
 @Composable
 private fun CalendarDayCell(
@@ -196,7 +198,7 @@ private fun CalendarDayCell(
     onClick: () -> Unit
 ) {
     val bgColor by animateColorAsState(
-        targetValue = when {
+        when {
             isSelected -> MaterialTheme.colorScheme.primaryContainer
             isToday -> MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
             else -> MaterialTheme.colorScheme.surface
@@ -254,7 +256,10 @@ private fun ScheduleCard(
 
             Spacer(Modifier.height(8.dp))
 
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
                 IconButton(onClick = onEdit) {
                     Icon(Icons.Default.Edit, contentDescription = "Editar")
                 }
